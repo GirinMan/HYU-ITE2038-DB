@@ -1,42 +1,41 @@
 #include "diskmanage.h"
 
 int fd;
-FILE * fp;
 
 HeaderPage_t header;
-pagenum_t root_page_num;
+Pagenum_t root_page_num;
 
 // Allocate an on-disk page from the free page list
-pagenum_t file_alloc_page(){
+Pagenum_t file_alloc_page(){
 
     if(header.free_page_num != 0){ // If there is at least one free page in file
 
         // Selecting a page number of a page that will be allocated as a node page
-        pagenum_t page_num = header.free_page_num;
+        Pagenum_t page_num = header.free_page_num;
         
         // Read the free page to get next free page number that should be connected to header page structure variable
         // And update data of header page in  file on the disk
         FreePage_t free_page;
-        file_read_page(page_num, (page_t *)&free_page);
+        file_read_page(page_num, (Page_t *)&free_page);
 
         update_header(free_page.next_free_page_num, header.root_page_num, header.num_page);
 
         // Create a new node page structure variable and write it on the disk
         NodePage_t allocated_page;
-        file_write_page(page_num, (page_t *)&allocated_page);
+        file_write_page(page_num, (Page_t *)&allocated_page);
 
         return page_num;
     }
     else{ // If there isn't any free page left
 
         // Array of new pages to be written on the file
-        page_t new_pages[DEFAULT_NEW_PAGE_COUNT];
+        Page_t new_pages[DEFAULT_NEW_PAGE_COUNT];
 
         // Create new node page and allocate
         NodePage_t new_node_page;
-        new_pages[0] = (page_t)new_node_page;
+        new_pages[0] = (Page_t)new_node_page;
 
-        pagenum_t new_page_num = header.num_page;
+        Pagenum_t new_page_num = header.num_page;
 
         // new_pages[i]'s page number = new_page_num + i;
         for(int i = 1; i < DEFAULT_NEW_PAGE_COUNT - 1; ++i)
@@ -52,7 +51,7 @@ pagenum_t file_alloc_page(){
 }
 
 // Free an on-disk page to the free page list
-void file_free_page(pagenum_t pagenum){
+void file_free_page(Pagenum_t pagenum){
 
     if(pagenum > 0 && pagenum < header.num_page){
         FreePage_t free_page;
@@ -62,26 +61,26 @@ void file_free_page(pagenum_t pagenum){
         free_page.next_free_page_num = header.free_page_num;
 
         // Updating data of pages on the disk
-        file_write_page(pagenum, (page_t *)&free_page);
+        file_write_page(pagenum, (Page_t *)&free_page);
         update_header(pagenum, header.root_page_num, header.num_page);
-        printf("Page number [%ld] was freed!\n", pagenum);
+        // printf("Page number [%ld] was freed!\n", pagenum);
     }
     else printf("Error: It is not allowed to free header page or non existing page!\n");
 }
 
 // Read an on-disk page into the in-memory page structure(dest)
-void file_read_page(pagenum_t pagenum, page_t* dest){
+void file_read_page(Pagenum_t pagenum, Page_t* dest){
     pread(fd, dest, PAGE_SIZE, PAGE_OFFSET(pagenum));
 }
 
 // Write an in-memory page(src) to the on-disk page
-void file_write_page(pagenum_t pagenum, const page_t* src){
+void file_write_page(Pagenum_t pagenum, const Page_t* src){
     pwrite(fd, src, PAGE_SIZE, PAGE_OFFSET(pagenum));
     fdatasync(fd);
 }
 
 // Write some multiple pages stored in an array into the file
-void file_write_multi_pages(pagenum_t pagenum, const page_t* src, const int num_page){
+void file_write_multi_pages(Pagenum_t pagenum, const Page_t* src, const int num_page){
     pwrite(fd, src, PAGE_SIZE * num_page, PAGE_OFFSET(pagenum));
     fdatasync(fd);
 }
@@ -104,12 +103,12 @@ int file_open_if_exist(const char * pathname){
 }
 
 // Update information of both in-memory and on-disk header pages with given values
-void update_header(pagenum_t free_page_num, pagenum_t root_page_num, pagenum_t num_page){
+void update_header(Pagenum_t free_page_num, Pagenum_t root_page_num, Pagenum_t num_page){
     header.free_page_num = free_page_num;
     header.root_page_num = root_page_num;
     header.num_page = num_page;
 
-    file_write_page(HEADER_PAGE_NUMBER, (page_t *)&header);
+    file_write_page(HEADER_PAGE_NUMBER, (Page_t *)&header);
 }
 
 // NEW FUNCTIONS FOR THE DISKED-BASED B+ TREE
@@ -119,10 +118,13 @@ void update_header(pagenum_t free_page_num, pagenum_t root_page_num, pagenum_t n
 // return negative value. (This table id will be used for future assignment.)
 int open_table (char * pathname){
 
+    if(!pathname || !pathname[0])
+        return FAILURE;
+
     // When a file already exists in the path
     // Update the in-memory header page with data stored in the file
     if(file_open_if_exist(pathname)){
-        file_read_page(HEADER_PAGE_NUMBER, (page_t *)&header);
+        file_read_page(HEADER_PAGE_NUMBER, (Page_t *)&header);
     }
 
     // When the file in pathname is not available
@@ -133,11 +135,7 @@ int open_table (char * pathname){
 }
 
 
-// Find the matching record and delete it if found.
-// If success, return 0. Otherwise, return non-zero value.
-int db_delete (int64_t key){
-    return 2;
-}
+
 
 // Print the information of current header page
 void print_header_page(){
@@ -148,32 +146,16 @@ void print_header_page(){
 }
 
 // Print the information of a single node page
-void print_node_page(pagenum_t pagenum){
+void print_node_page(Pagenum_t pagenum){
 
     NodePage_t page;
     file_read_page(pagenum, PAGE_ADDRESS(page));
 
-    if(page.is_leaf){
-        printf("<Leaf page [%ld] status> ", pagenum);
-        printf("Number of keys: %d / ", page.num_key);
-        printf("Right sibling page number: %ld / ", page.right_page_num);
-        printf("Stored records (key, value) / ");
-        for(int i = 0; i < page.num_key; i++)
-            printf("(%ld, %s) ", page.lf_record[i].key, page.lf_record[i].value);
-    }
-    else{
-        printf("<Non-leaf page [%ld] status> ", pagenum);
-        printf("Number of keys: %d / ", page.num_key);
-        printf("Extra page number: %ld / ", page.extra_page_num);
-        printf("Stored records (key, page number) / ");
-        for(int i = 0; i < page.num_key; i++)
-            printf("(%ld, %ld) ", page.in_record[i].key, page.in_record[i].page_num);
-    }
-    printf("\n");
+    print_node(page, pagenum);
     
 }
 
-void print_node(NodePage_t page, pagenum_t pagenum){
+void print_node(NodePage_t page, Pagenum_t pagenum){
 
     if(page.is_leaf){
         printf("<Leaf page [%ld] status> ", pagenum);

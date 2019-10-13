@@ -1,6 +1,8 @@
+#ifndef __DISKMANAGE_H__
+#define __DISKMANAGE_H__
+
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -14,22 +16,28 @@
 #define HEADER_PAGE_NUMBER 0
 
 #define SUCCESS 0
+#define FAILURE -1
+
 #define NO_MORE_FREE_PAGE 0
 #define NO_ROOT_NODE 0
 #define NO_PARENT 0
+
 #define RIGHTMOST_LEAF 0
+#define LEFTMOST_LEAF -1
+
 #define KEY_DO_NOT_EXISTS 0
 #define KEY_ALREADY_EXISTS 1
 
 #define PAGE_OFFSET(pagenum) pagenum * PAGE_SIZE
-#define PAGE_ADDRESS(page) (page_t *)&page
+#define PAGE_ADDRESS(page) (Page_t *)&page
+#define INTERNAL_VAL(node, i) i ? node.in_record[i - 1].page_num : node.extra_page_num
 
 extern int fd;
 extern FILE * fp;
 extern int num_table;
 extern struct HeaderPage_t header;
 
-typedef uint64_t pagenum_t;
+typedef uint64_t Pagenum_t;
 typedef uint64_t offset_t;
 typedef int64_t keyval_t;
 
@@ -47,7 +55,7 @@ typedef struct LeafRecord{
 typedef struct InternalRecord{
     
     keyval_t key;
-    pagenum_t page_num;
+    Pagenum_t page_num;
 
 } InternalRecord;
 
@@ -59,13 +67,13 @@ typedef struct HeaderPage_t {
 
     // points the first free pages
     // 0 if there's no free page left
-    pagenum_t free_page_num; 
+    Pagenum_t free_page_num; 
 
     // points the root page within the data file
-    pagenum_t root_page_num;
+    Pagenum_t root_page_num;
 
     // denote the number of pages existing in this data file now
-    pagenum_t num_page;
+    Pagenum_t num_page;
 
     // unused bytes of header page
     char reserved[4072];
@@ -76,7 +84,7 @@ typedef struct FreePage_t {
 
     // points the next free page
     // 0 if the page is the end of the free page list
-    pagenum_t next_free_page_num;
+    Pagenum_t next_free_page_num;
 
     // unused bytes of header page
     char reserved[4088];
@@ -88,7 +96,7 @@ typedef struct NodePage_t {
     // Page Header ------------------------------
     
     // points the position of parent page
-    pagenum_t parent_page_num;
+    Pagenum_t parent_page_num;
 
     // indicate whether it is a leaf page or not
     int is_leaf;
@@ -105,11 +113,11 @@ typedef struct NodePage_t {
     {
     // an extra page number for interpreting key range
     // pointing at the leftmost child
-    pagenum_t extra_page_num;
+    Pagenum_t extra_page_num;
 
     // stores the page's right sibling page's page number
     // 0 if the page is a rightmost page
-    pagenum_t right_page_num;
+    Pagenum_t right_page_num;
     };
 
     union
@@ -125,37 +133,37 @@ typedef struct NodePage_t {
 
 } NodePage_t;
 
-typedef union page_t{
+typedef union Page_t{
     HeaderPage_t header_page;
     FreePage_t free_page;
     NodePage_t node_page;
-} page_t;
+} Page_t;
 
 /* 
     Functions for handling file I/O
 */
 
 // Allocate an on-disk page from the free page list
-pagenum_t file_alloc_page();
+Pagenum_t file_alloc_page();
 
 // Free an on-disk page to the free page list
-void file_free_page(pagenum_t pagenum);
+void file_free_page(Pagenum_t pagenum);
 
 // Read an on-disk page into the in-memory page structure(dest)
-void file_read_page(pagenum_t pagenum, page_t* dest);
+void file_read_page(Pagenum_t pagenum, Page_t* dest);
 
 // Write an in-memory page(src) to the on-disk page
-void file_write_page(pagenum_t pagenum, const page_t* src);
+void file_write_page(Pagenum_t pagenum, const Page_t* src);
 
 // Write some multiple pages stored in an array into the file
-void file_write_multi_pages(pagenum_t pagenum, const page_t* src, const int num_page);
+void file_write_multi_pages(Pagenum_t pagenum, const Page_t* src, const int num_page);
 
 // If the file exists in given pathname, open it in fd and return 1
 // If the file doesn't exist or has error, return 0
 int file_open_if_exist(const char * pathname);
 
 // Update information of both in-memory and on-disk header pages with given values
-void update_header(pagenum_t free_page_num, pagenum_t root_page_num, pagenum_t num_page);
+void update_header(Pagenum_t free_page_num, Pagenum_t root_page_num, Pagenum_t num_page);
 
 /* 
     Functions for operating disk-based B+ tree
@@ -187,5 +195,7 @@ int db_delete (int64_t key);
 void print_header_page();
 
 // Print the information of a single node page
-void print_node_page(pagenum_t pagenum);
-void print_node(NodePage_t node_page, pagenum_t pagenum);
+void print_node_page(Pagenum_t pagenum);
+void print_node(NodePage_t node_page, Pagenum_t pagenum);
+
+#endif /* __DISKMANAGE__H__ */
