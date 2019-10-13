@@ -1,3 +1,9 @@
+# ITE2038 Database Management System Wiki
+
+#### by 2018008904 Lee Seong Jin
+
+<br> <br>
+
 ## [Project #2 - On-disk B+ tree 구현]
 
 ### _About the Project_
@@ -140,9 +146,10 @@ void file_write_page(pagenum_t pagenum, const page_t* src);
 
 <br>
 
-#### 1.4. Details about implemeting On-disk B+ tree
+### _Milestone 2: Details about implemeting On-disk B+ tree_
+---
 
-**Page structures**
+#### 2.1. Page structures
 
 - 기존의 In-memory B+ tree와 다르게, On-disk B+ tree는 데이터가 저장되어 있는 파일을 4096바이트 단위로 나누어서 페이지로 관리한다.
 - 따라서, 파일을 페이지 단위로 입력하고 출력하며 파일에 저장된 데이터를 메모리 위로 불러와 작업하는 것들이 모두 가능하도록 하는 In-memory structure들을 설계했다.
@@ -237,7 +244,7 @@ typedef union Page_t{
 
 <br>
 
-**File I/O functions**
+#### 2.2.  File I/O functions
 
 - 기존 In-memory B+ tree는 Node structure 하나를 메모리 위에 잡아두고 포인터를 활용하여 해당 노드에 입 출력을 하는 구조로 이루어져 있었다.
 - 메모리가 아니라 디스크 위에 저장된 페이지로 노드를 대체하기 위해서는, 포인터 변수를 통해 노드에 접근하고 데이터를 읽고 썼던 것과 비슷한 페이지에 접근할 수 있는 방법이 필요하다.
@@ -281,7 +288,7 @@ void update_header(Pagenum_t free_page_num, Pagenum_t root_page_num, Pagenum_t n
 
 <br>
 
-**Implementing B+ tree operations**
+#### 2.3.  Implementing B+ tree operations
 
 - 기존 In-memory B+ tree를 operate하는 함수 정의들을 바탕으로, 새로운 On-disk page가 노드로 사용되는 B+ tree와 다음 함수들을 구현했다.
 - 기존 함수들이 Node structure를 가리키는 포인터 주소를 return하는 경우나 paramater에 요구하는 경우, Page number로 대체했다. 포인터 주소로 메모리의 노드에 접근하는 것 처럼, File I/O를 이용해 특정 Page number가 가리키는 페이지에 접근할 수 있기 때문이다.
@@ -316,7 +323,7 @@ int db_delete (Keyval_t key);
 
 <br>
 
-**Delayed merge**
+#### 2.4. Delayed merge
 
 - 기존의 ```delete``` 함수를 호출하면 우선 paramater로 들어간 key 값이 tree 내부에 존재하는지 찾은 다음, 해당 key가 존재하는 leaf 노드를 찾아 key를 지우고 key에 해당되는 record들을 B+ tree의 성질이 유지되도록 재배치한다.
 - key가 어떤 노드에서 삭제되고 난 뒤에, 해당 함수는 현재 노드에 남아있는 키의 개수가 min_key 보다 크거나 같은지 확인하는데, 만약 min_key 이상의 key를 가지고 있을 경우 아무 작업도 실시하지 않아 tree의 형태에 변형이 없다.
@@ -360,6 +367,10 @@ else
 - 단 한 개의 key만 남아있는 노드에서 deletion이 일어날 경우에만, 즉 해당 노드가 empty 되었을 경우에만 coalesce 또는 redistritubte operation을 실행하여 disk I/O에 드는 비용을 최소화할 수 있다.
 
 이를 위해서는 기존의 코드에서 다음과 같이 min_key를 1로 설정하면 된다. 그러면 삭제 이후에 해당 노드에 key가 전혀 존재하지 않는 경우를 제외하면 key의 재배치가 일어나지 않게 된다.
+
+그런데 Internal page의 capacity는 Internal order - 1 이지만 Leaf page의 capacity는 Leaf order 이므로, 한 리프 노드에서 모든 key가 삭제된 경우에는 이웃한 리프 노드의 키가 최대치여도 두 리프 노드의 key 개수의 합이 capacity 보다 작다. 
+
+따라서, Leaf page에서는 redistribute operation이 일어나지 않는다. 오직 Internal Page에서만 redistribute operation이 일어날 수 있다.
 
 ```c
 min_keys = 1;
