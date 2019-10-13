@@ -1,7 +1,7 @@
 #include "bpt.h"
 
 int main(){
-    int table_id = open_table("dat");
+    int table_id = open_table("datafile.txt");
 
     bool terminate = false;
     char cmd;

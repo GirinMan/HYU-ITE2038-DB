@@ -1,6 +1,4 @@
-# ITE2038 Database Management System Wiki
-
-## Project #2 - On-disk B+ tree 구현
+## [Project #2 - On-disk B+ tree 구현]
 
 ### _About the Project_
 ---
@@ -139,3 +137,230 @@ void file_write_page(pagenum_t pagenum, const page_t* src);
 >
 >**4. delete [key]** - [key] 값에 대응하는 record를 찾고 만약 존재한다면 해당 record를 tree에서 delete한다.
 >
+
+<br>
+
+#### 1.4. Details about implemeting On-disk B+ tree
+
+**Page structures**
+
+- 기존의 In-memory B+ tree와 다르게, On-disk B+ tree는 데이터가 저장되어 있는 파일을 4096바이트 단위로 나누어서 페이지로 관리한다.
+- 따라서, 파일을 페이지 단위로 입력하고 출력하며 파일에 저장된 데이터를 메모리 위로 불러와 작업하는 것들이 모두 가능하도록 하는 In-memory structure들을 설계했다.
+- 각 페이지는 용량은 모두 같으나 오프셋에 저장되는 데이터의 크기와 종류, 개수 등이 다르므로, 각각의 페이지(Header page, Free page, Leaf page, Internal page)에 해당하는 In-memory structure 들을 정의할 필요가 있었다.
+- 그런데 Leaf와 Internal page들은 (key, value) record들을 저장하는 방식을 제외하면 모든 데이터의 오프셋과 크기 등이 같으므로, 두 페이지 형식을 표현할 수 있는 공통된 structure 하나를 정의하고 ```union``` 키워드와 ```boolean``` is_leaf를 활용하여 Leaf와 Internal을 구분하여 사용할 수 있도록 하였다.
+
+각 구조체는 다음과 같이 정의되어 있다:
+
+```c
+typedef struct HeaderPage_t {
+
+    // points the first free pages
+    // 0 if there's no free page left
+    Pagenum_t free_page_num; 
+
+    // points the root page within the data file
+    Pagenum_t root_page_num;
+
+    // denote the number of pages existing in this data file now
+    Pagenum_t num_page;
+
+    // unused bytes of header page
+    char reserved[4072];
+
+} HeaderPage_t;
+```
+
+```c
+typedef struct FreePage_t {
+
+    // points the next free page
+    // 0 if the page is the end of the free page list
+    Pagenum_t next_free_page_num;
+
+    // unused bytes of header page
+    char reserved[4088];
+    
+} FreePage_t;
+```
+
+```c
+typedef struct NodePage_t {
+
+    // Page Header ------------------------------
+    
+    // points the position of parent page
+    Pagenum_t parent_page_num;
+
+    // indicate whether it is a leaf page or not
+    int is_leaf;
+
+    // denote the number of keys within this page
+    int num_key; 
+
+    // unused bytes of node pade
+    char reserved[104];
+
+    // ------------------------------------------
+
+    union
+    {
+    // an extra page number for interpreting key range
+    // pointing at the leftmost child
+    Pagenum_t extra_page_num;
+
+    // stores the page's right sibling page's page number
+    // 0 if the page is a rightmost page
+    Pagenum_t right_page_num;
+    };
+
+    union
+    {
+    // array storing records in the page
+    // maximum 248 records per page(branching factor = 249)
+    InternalRecord in_record[248];
+       
+    // array storing records in the page
+    // maximum 31 records per page(branching factor = 32)
+    LeafRecord lf_record[31];
+    };
+
+} NodePage_t;
+```
+
+```c
+typedef union Page_t{
+    HeaderPage_t header_page;
+    FreePage_t free_page;
+    NodePage_t node_page;
+} Page_t;
+```
+
+<br>
+
+**File I/O functions**
+
+- 기존 In-memory B+ tree는 Node structure 하나를 메모리 위에 잡아두고 포인터를 활용하여 해당 노드에 입 출력을 하는 구조로 이루어져 있었다.
+- 메모리가 아니라 디스크 위에 저장된 페이지로 노드를 대체하기 위해서는, 포인터 변수를 통해 노드에 접근하고 데이터를 읽고 썼던 것과 비슷한 페이지에 접근할 수 있는 방법이 필요하다.
+- 따라서, 메모리의 특정 주소로 접근하는 방식인 포인터와 유사하게 특정 페이지 넘버를 입력하면 해당 페이지 넘버가 가리키는 페이지의 데이터를 읽거나 쓸 수 있도록 하는 ```file_read_page```와 ```file_write_page``` 함수를 설계했다.
+- 기존의 tree가 ```malloc``` 함수를 호출하여 새로운 메모리 영역에 새로운 노드를 생성하고 ```free``` 함수를 이용하여 메모리에서 제거한 것 처럼, 현재 사용중이 아닌 free page list에서 한 페이지를 allocation해주는 ```file_alloc_page``` 함수와 페이지 하나를 free page list로 free 해주는 ```file_free_page``` 함수 역시 설계했다.
+- 만약 ```file_alloc_page```가 호출되었는데 더 이상 free page가 남아있지 않은 경우, 미리 정해져있는 `DEFAULT_NEW_PAGE_COUNT` 만큼의 새로운 free 페이지를 생성한 후 페이지를 할당해 주어 새로운 패이지가 생성되는 시간을 줄이고자 했다.
+- 또한 ```open_table``` 함수 내에서 사용할 수 있도록 입력된 path에 파일이 존재하며 읽고 쓰기가 가능할 경우 파일을 열고, 그렇지 않은 경우 파일을 새로 생성하는 ```file_open_if_exist``` 함수를 생성한다.
+- 테이블 전체를 관리하는 Header page는 전역 변수 header로 관리하도록 했으며, In-memory header와 On-disk header의 데이터가 일치하도록 해주는 ```update_header``` 함수까지 설계했다.
+
+각 함수 선언은 다음과 같다:
+
+```c
+#define PAGE_SIZE 4096
+#define DEFAULT_NEW_PAGE_COUNT 128
+#define HEADER_PAGE_NUMBER 0
+
+struct HeaderPage_t header;
+
+// Allocate an on-disk page from the free page list
+Pagenum_t file_alloc_page();
+
+// Free an on-disk page to the free page list
+void file_free_page(Pagenum_t pagenum);
+
+// Read an on-disk page into the in-memory page structure(dest)
+void file_read_page(Pagenum_t pagenum, Page_t* dest);
+
+// Write an in-memory page(src) to the on-disk page
+void file_write_page(Pagenum_t pagenum, const Page_t* src);
+
+// Write some multiple pages stored in an array into the file
+void file_write_multi_pages(Pagenum_t pagenum, const Page_t* src, const int num_page);
+
+// If the file exists in given pathname, open it in fd and return 1
+// If the file doesn't exist or has error, return 0
+int file_open_if_exist(const char * pathname);
+
+// Update information of both in-memory and on-disk header pages with given values
+void update_header(Pagenum_t free_page_num, Pagenum_t root_page_num, Pagenum_t num_page);
+```
+
+<br>
+
+**Implementing B+ tree operations**
+
+- 기존 In-memory B+ tree를 operate하는 함수 정의들을 바탕으로, 새로운 On-disk page가 노드로 사용되는 B+ tree와 다음 함수들을 구현했다.
+- 기존 함수들이 Node structure를 가리키는 포인터 주소를 return하는 경우나 paramater에 요구하는 경우, Page number로 대체했다. 포인터 주소로 메모리의 노드에 접근하는 것 처럼, File I/O를 이용해 특정 Page number가 가리키는 페이지에 접근할 수 있기 때문이다.
+- 기존 함수들에서 노드 포인터 변수를 선언하고 해당 변수를 통해서 노드의 데이터 입 출력을 하는 경우 ```Pagenum_t``` 형식 변수와 ```NodePage_t``` 형식 변수를 하나씩 선언하여 포인터 변수의 활용을 대체했다.
+- 또한 새로운 메모리 영역을 할당하는 ```malloc``` 부분은 ```file_alloc_page```로 대체하였고, ```free``` 부분은 ```file_free_page```로 대체하였다.
+- ```file_read_page``` 함수를 호출하여 페이지의 데이터를 읽고 수정한 후에는 반드시 실제 디스크 위의 파일과 일치하도록 변경된 내용을 ```file_write_page``` 함수를 호출하여 파일에 쓰도록 했다.
+- 특정 경로를 바탕으로 파일을 여는 ```open_table``` 함수는 우선 ```file_open_if_exist```로 파일이 이미 존재하는지 확인하여 만약 존재할 경우 헤더페이지의 내용을 In-memory header에 읽어온 뒤 테이블 ID를 return한다.
+- 만약 파일이 존재하지 않을 경우 새로운 파일을 생성한 뒤 헤더 페이지의 루트 노드를 0, 페이지 개수를 1, 그리고 free page list의 첫 번째 페이지 넘버를 0 즉 헤더페이지 외에는 아무 페이지도 없는 상태로 초기화 시킨다.
+
+각 함수 선언은 다음과 같다:
+
+```c
+typedef Keyval_t int64_t
+
+/* *Open existing data file using ‘pathname’ or create one if not existed.
+If success, return the unique table id, which represents the own table in this database. Otherwise, return negative value. (This table id will be used for future assignment.) */
+int open_table (char * pathname);
+
+/*Insert input ‘key/value’ (record) to data file at the right place.
+If success, return 0. Otherwise, return non-zero value. */
+int db_insert (Keyval_t key, char * value);
+
+/* Find the record containing input ‘key’.
+ If found matching ‘key’, store matched ‘value’ string in ret_val and return 0. Otherwise, return non-zero value.
+Memory allocation for record structure(ret_val) should occur in caller function. */
+int db_find (Keyval_t key, char * ret_val);
+
+/* Find the matching record and delete it if found.
+If success, return 0. Otherwise, return non-zero value. */
+int db_delete (Keyval_t key);
+```
+
+<br>
+
+**Delayed merge**
+
+- 기존의 ```delete``` 함수를 호출하면 우선 paramater로 들어간 key 값이 tree 내부에 존재하는지 찾은 다음, 해당 key가 존재하는 leaf 노드를 찾아 key를 지우고 key에 해당되는 record들을 B+ tree의 성질이 유지되도록 재배치한다.
+- key가 어떤 노드에서 삭제되고 난 뒤에, 해당 함수는 현재 노드에 남아있는 키의 개수가 min_key 보다 크거나 같은지 확인하는데, 만약 min_key 이상의 key를 가지고 있을 경우 아무 작업도 실시하지 않아 tree의 형태에 변형이 없다.
+- 그런데 만약 현재 노드에서 key 1개를 삭제하고 난 뒤 남은 key의 개수가 min_key 미만이라면, tree의 각 key들을 재배치하여 더 효율적인 구조가 되도록 한다.
+- 이웃한 노드와 병합이 가능하면 ```coalesce_nodes```, 불가능할 경우 이웃에게 key를 하나 가져오는 ```redistribute_nodes```를 호출한다.
+- 기본적으로 min_key는 해당 노드가 가지고 있을 수 있는 key의 개수의 절반으로 설정되어 있다.
+
+```c
+min_keys = n->is_leaf ? cut(order - 1) : cut(order) - 1;
+
+/* Case:  node stays at or above minimum.
+ * (The simple case.)
+ */
+
+if (n->num_keys >= min_keys)
+    return root;
+
+```
+
+```c
+
+/* Case:  node falls below minimum.
+ * Either coalescence or redistribution
+* is needed.
+*/
+
+/* Coalescence. */
+
+if (neighbor->num_keys + n->num_keys < capacity)
+    return coalesce_nodes(root, n, neighbor, neighbor_index, k_prime);
+
+/* Redistribution. */
+
+else
+    return redistribute_nodes(root, n, neighbor, neighbor_index, k_prime_index, k_prime);
+
+```
+
+- 그런데 On-disk B+ tree에서 매번 key가 절반 이하로 줄어들 때 마다 페이지 병합이나 키 교환등을 진행하기에는 디스크 I/O에 드는 비용이 너무 크기 때문에, 이러한 operation들이 진행되기 위한 조건을 바꿀 필요가 있다.
+- 만약 현재 페이지에서 key deletion이 일어난 이후로 단 한개의 key라도 존재한다면, merge operation이 발생하는 것을 최소화하기 위해 아무런 작업을 진행하지 않는다.
+- 단 한 개의 key만 남아있는 노드에서 deletion이 일어날 경우에만, 즉 해당 노드가 empty 되었을 경우에만 coalesce 또는 redistritubte operation을 실행하여 disk I/O에 드는 비용을 최소화할 수 있다.
+
+이를 위해서는 기존의 코드에서 다음과 같이 min_key를 1로 설정하면 된다. 그러면 삭제 이후에 해당 노드에 key가 전혀 존재하지 않는 경우를 제외하면 key의 재배치가 일어나지 않게 된다.
+
+```c
+min_keys = 1;
+```
