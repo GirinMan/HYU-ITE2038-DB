@@ -1,6 +1,7 @@
 #include "diskmanage.h"
 
 int fd;
+int num_table = 0;
 
 HeaderPage_t header;
 Pagenum_t root_page_num;
@@ -91,13 +92,14 @@ int file_open_if_exist(const char * pathname){
 
     if(access(pathname, F_OK | R_OK | W_OK )){
         fd = open(pathname, O_RDWR | O_CREAT, 0644);
-        printf("File [%s] is not able to be opened.\n", pathname);
-        printf("New file is created.\n");
+        //printf("File [%s] is not able to be opened.\n", pathname);
+        //printf("New file is created.\n");
+        //printf("The file [%s] has been opened in [fd: %d].\n", pathname, fd);
         return 0;
     }
     else{
         fd = open(pathname, O_RDWR, 0644);
-        printf("The file [%s] has been opened in [fd: %d].\n", pathname, fd);
+        //printf("The file [%s] has been opened in [fd: %d].\n", pathname, fd);
         return 1;
     }
 }
@@ -118,23 +120,26 @@ void update_header(Pagenum_t free_page_num, Pagenum_t root_page_num, Pagenum_t n
 // return negative value. (This table id will be used for future assignment.)
 int open_table (char * pathname){
 
-    if(!pathname || !pathname[0])
+    int result;
+
+    if(!pathname || pathname[0] == 0)
         return FAILURE;
+
+    result = file_open_if_exist(pathname);
+
+    if(fd == -1) return FAILURE;
 
     // When a file already exists in the path
     // Update the in-memory header page with data stored in the file
-    if(file_open_if_exist(pathname)){
+    if(result)
         file_read_page(HEADER_PAGE_NUMBER, (Page_t *)&header);
-    }
 
     // When the file in pathname is not available
     // Create a new file and initialize the header file
     else update_header(0, NO_ROOT_NODE, 1);
 
-    return fd;
+    return num_table++;
 }
-
-
 
 
 // Print the information of current header page

@@ -119,7 +119,6 @@ Pagenum_t dequeue( void ) {
 
 void print_tree( Pagenum_t root_page_num ) {
 
-    printf("\n");
     NodePage_t node, parent;
     Pagenum_t temp;
     int i = 0;

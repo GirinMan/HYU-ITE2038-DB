@@ -106,10 +106,6 @@ Pagenum_t insert_into_parent(Pagenum_t root, Pagenum_t left, keyval_t key, Pagen
 Pagenum_t insert_into_new_root(Pagenum_t left, keyval_t key, Pagenum_t right);
 Pagenum_t start_new_tree(keyval_t key, Record_t pointer);
 
-// Insert input ‘key/value’ (record) to data file at the right place.
-// If success, return 0. Otherwise, return non-zero value.
-int db_insert(keyval_t key, char * value );
-
 // Deletion.
 
 int get_neighbor_index( Pagenum_t n );
@@ -117,7 +113,6 @@ Pagenum_t adjust_root(Pagenum_t root);
 Pagenum_t coalesce_nodes(Pagenum_t root, Pagenum_t n, Pagenum_t neighbor, int neighbor_index, keyval_t k_prime);
 Pagenum_t redistribute_nodes(Pagenum_t root, Pagenum_t n, Pagenum_t neighbor, int neighbor_index, int k_prime_index, keyval_t k_prime);
 Pagenum_t delete_entry( Pagenum_t root, Pagenum_t n, keyval_t key);
-Pagenum_t delete( Pagenum_t root, keyval_t key );
 
 Pagenum_t remove_entry_from_node(Pagenum_t node_page_num, keyval_t key);
 
