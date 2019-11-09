@@ -1,9 +1,6 @@
 .vscode/
-project2/main
-project2/src/*.o
-project2/lib/libbpt.a
-project2/data
-project3/main
-project3/src/*.o
-project3/data
-project3/lib/libbpt.a
+project*/main
+project*/src/*.o
+project*/data
+project*/join
+project*/lib/libbpt.a
