@@ -14,14 +14,14 @@ TARGET_SRC:=$(SRCDIR)main.cpp
 TARGET_OBJ:=$(SRCDIR)main.o
 
 # Include more files if you write another source file.
-SRCS_FOR_LIB:=$(SRCDIR)diskmanage.cpp $(SRCDIR)buffer.cpp $(SRCDIR)bpt_insert.cpp $(SRCDIR)bpt_delete.cpp $(SRCDIR)bpt_utils.cpp $(SRCDIR)join.cpp 
+SRCS_FOR_LIB:=$(SRCDIR)diskmanage.cpp $(SRCDIR)buffer.cpp $(SRCDIR)bpt_insert.cpp $(SRCDIR)bpt_delete.cpp $(SRCDIR)bpt_utils.cpp $(SRCDIR)join.cpp $(SRCDIR)transaction.cpp 
 OBJS_FOR_LIB:=$(SRCS_FOR_LIB:.cpp=.o)
 
 CFLAGS+= -g -fPIC -I $(INC) -std=c++14
 
 TARGET=main
 
-all: diskmanage buffer bpt m $(TARGET)
+all: diskmanage buffer bpt joins transaction m $(TARGET)
 
 diskmanage:
 	$(CC) $(CFLAGS) -o $(SRCDIR)diskmanage.o -c $(SRCDIR)diskmanage.cpp
@@ -33,7 +33,15 @@ bpt:
 	$(CC) $(CFLAGS) -o $(SRCDIR)bpt_insert.o -c $(SRCDIR)bpt_insert.cpp
 	$(CC) $(CFLAGS) -o $(SRCDIR)bpt_delete.o -c $(SRCDIR)bpt_delete.cpp
 	$(CC) $(CFLAGS) -o $(SRCDIR)bpt_utils.o -c $(SRCDIR)bpt_utils.cpp
+
+joins:
 	$(CC) $(CFLAGS) -o $(SRCDIR)join.o -c $(SRCDIR)join.cpp
+
+transaction:
+	$(CC) $(CFLAGS) -o $(SRCDIR)transaction.o -c $(SRCDIR)transaction.cpp
+
+lockmanage:
+	$(CC) $(CFLAGS) -o $(SRCDIR)lockmanage.o -c $(SRCDIR)lockmanage.cpp
 
 m:
 	$(CC) $(CFLAGS) -c -o $(SRCDIR)main.o -c $(SRCDIR)main.cpp

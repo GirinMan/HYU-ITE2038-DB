@@ -106,7 +106,7 @@ Pagenum_t Join::get_next_leaf(int location){
         return right->frame.node_page.right_page_num;
     }
     else{
-        /* DEBUG */ cout << "뭔가 잘못됨. Join::get_next_leaf 에서 발생" << endl;
+        // cout << "뭔가 잘못됨. Join::get_next_leaf 에서 발생" << endl;
         return FAILURE;
     }
 }
@@ -192,4 +192,3 @@ void find_leftmost_page_num(int table_id_1, int table_id_2, Pagenum_t * left_lea
     }
     
 }
-

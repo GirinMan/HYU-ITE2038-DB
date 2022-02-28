@@ -1,8 +1,8 @@
-#include <buffer.hpp>
+#include <buffer_backup.hpp>
 
 BufferBlock_t * buffer = NULL;
 TableInfo_t tables;
-
+ 
 void clear(BufferBlock_t * frame){
     frame->page_num = 0;
     frame->is_dirty = false;
@@ -24,48 +24,7 @@ void add_page_into_front(BufferBlock_t * frame){
     buffer = frame;
 }
 
-// Allocate the buffer pool (array) with the given number of entries.
-// Initialize other fields such as state info, LRU info
-// If success, return 0. Otherwise, return non zero value.
-int init_db(int num_buf){
 
-    int i;
-    BufferBlock_t * temp;
-
-    // Ignore when num_buf <= 0
-    if( num_buf <= 0)
-        return FAILURE;
-
-    // Initialize table list
-    tables.num_table = 0;
-    for (i = 1; i <= MAX_TABLE_NUMBER; ++i){
-        tables.pathname[i][0] = 0;
-        tables.fd[i] = 0;
-        tables.in_use[i] = false;
-    }
-
-    // Allocate buffer num_buf times and attach new buffer in front of the first buffer
-    for (i = 0; i < num_buf; ++i){
-        
-        temp = (BufferBlock_t *)malloc(sizeof(BufferBlock_t));
-        if(temp == NULL){
-            return FAILURE;
-        }
-
-        clear(temp);
-        temp->next = temp->prev = NULL;
-
-        if(buffer == NULL){
-            buffer = temp;
-        }
-        else{
-            buffer->prev = temp;
-            temp->next = buffer;
-            buffer = temp;
-        }    
-    }
-    return SUCCESS;
-}
 
 // Open existing data file using ‘pathname’ or create one if not existed.
 // If success, return the unique table id, which represents the own table in this database. Otherwise,
@@ -155,23 +114,7 @@ int close_table(int table_id){
     return SUCCESS;
 }
 
-// Destroy buffer manager
-int shutdown_db(void){
 
-    int i;
-    for(i = 1; i <= MAX_TABLE_NUMBER; i++){
-        close_table(i);
-    }
-
-    BufferBlock_t * temp = buffer, * next = NULL;
-    while(temp != NULL){
-        next = temp->next;
-        free(temp);
-        temp = next;
-    }
-    buffer = NULL;
-    return SUCCESS;
-}
 
 // Functions for read/write pages in buffer.
 // If the page is not in buffer pool (cache miss), read page from disk and maintain that page in buffer block.

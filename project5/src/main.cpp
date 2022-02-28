@@ -1,4 +1,5 @@
 #include "join.hpp"
+#include "transaction.hpp"
 
 void print_instructions(){
     printf( "Welcome to disk-based B+ tree implementation!\n\nInstructions---------------\n\n");
@@ -26,11 +27,19 @@ int main(){
     char cmd, msg[120] = "MSG", buf[120], path[512];
     unsigned int buffer_num = 0, input_status, number, table_id;
 
-    do{
-        cout << "Enter the number of frame that will be used in buffer> ";
-        cin >> buffer_num;
-        init_db(buffer_num);
-    } while (buffer_num < 1);
+    bool input_valid = false;
+    while(!input_valid){
+        printf("Enter the number of frame that will be used in buffer> ");
+        scanf("%d", &buffer_num);
+        if(((signed int)buffer_num) < 1){
+            cin.clear();
+            buffer_num = 0;
+        }
+        else{
+            init_db(buffer_num);
+            input_valid = true;           
+        }
+    }
     
 
     print_instructions();
